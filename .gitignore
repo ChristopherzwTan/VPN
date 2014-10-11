@@ -21,6 +21,7 @@ main
 *.so
 *.so.*
 *.dylib
+*.swp
 
 # Executables
 *.exe

@@ -18,6 +18,7 @@
 
 #include "utils.h"
 #include "server.h"
+#include "crypto.h"
 
 #define MAX_LINE 16384
 
@@ -118,7 +119,8 @@ struct Server* server_init_new(
     GtkWidget *plainTextLog,
     GtkWidget *cipherTextLog,
     GtkWidget *portNumber,
-    GtkWidget *serverName
+    GtkWidget *serverName,
+    GtkWidget *sharedKey
 )
 {
     Server *this = malloc(sizeof(Server));
@@ -126,7 +128,10 @@ struct Server* server_init_new(
     this->plainTextLog = plainTextLog;
     this->cipherTextLog = cipherTextLog;
     this->statusButton = statusButton;
+    this->sharedKey = sharedKey;
     this->bev = NULL;
+
+    this->serverRSA = generate_key_pair();
 
     this->eventBase = event_base_new();
     if (!this->eventBase)

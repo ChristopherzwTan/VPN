@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 
 #include <event2/event.h>
+#include "crypto.h"
 
 typedef struct Server
 {
@@ -16,6 +17,8 @@ typedef struct Server
     GtkWidget *statusButton;
     GtkWidget *plainTextLog;
     GtkWidget *cipherTextLog;
+    GtkWidget *sharedKey;
+    RSA *serverRSA;
 } Server;
 
 struct Server* server_init_new(
@@ -23,7 +26,8 @@ struct Server* server_init_new(
     GtkWidget *plainTextLog,
     GtkWidget *cipherTextLog,
     GtkWidget *portNumber,
-    GtkWidget *serverName
+    GtkWidget *serverName,
+    GtkWidget *sharedKey
 );
 void server_free(struct Server *server);
 void server_send(struct Server *server, const char *msg);
