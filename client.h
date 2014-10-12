@@ -7,7 +7,10 @@
 #include <gtk/gtk.h>
 
 #include <event2/event.h>
-#include "crypto.h"
+
+#define AUTH_STATE_NONE 0
+#define AUTH_STATE_TEST 1
+#define AUTH_STATE_AUTHENTICATED 2
 
 typedef struct Client
 {
@@ -18,7 +21,9 @@ typedef struct Client
     GtkWidget *plainTextLog;
     GtkWidget *cipherTextLog;
     GtkWidget *sharedKey;
-    RSA *clientRSA;
+    int authState;
+    unsigned char *privateKey;
+    unsigned char *publicKey;
 } Client;
 
 struct Client* client_init_new(
@@ -26,10 +31,13 @@ struct Client* client_init_new(
     GtkWidget *plainTextLog,
     GtkWidget *cipherTextLog,
     GtkWidget *portNumber,
-    GtkWidget *serverName,
+    GtkWidget *clientName,
     GtkWidget *sharedKey
 );
 void client_send(struct Client *client, const char *msg);
 void client_free(struct Client *client);
+void clientReadStateAuthenticated(struct Client *client);
+void clientReadStateNoAuthentication(struct Client *client);
+void clientReadStateTestAuthentication(struct Client *client);
 
 #endif
