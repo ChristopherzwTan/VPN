@@ -8,6 +8,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 
 #include <gtk/gtk.h>
 
@@ -83,56 +84,72 @@ void clientReadStateTestAuthentication(Client *this)
 void clientReadStateNoAuthentication(Client *this)
 {
     struct evbuffer *input;
+    char *line;
     size_t len;
     input = bufferevent_get_input(this->bev);
 
     // Rb
-    unsigned char serverNonce[NONCE_SIZE] = {};
-    bufferevent_read(this->bev, serverNonce, NONCE_SIZE);
-    writeLine(this->plainTextLog, "NONCE RECEIVED:");
-    writeHex(this->plainTextLog, serverNonce, NONCE_SIZE);
+    char *serverNonce = evbuffer_readln(input, &len, EVBUFFER_EOL_LF);
+    writeLine(this->plainTextLog, "RECEIVED NONCE FROM SERVER:");
+    writeHex(this->plainTextLog, serverNonce, strlen(serverNonce));
 
-    unsigned char encryptedServerNonce[100] = {};
-    encrypt(serverNonce, encryptedServerNonce);
+    // Encrypted message
+    line = evbuffer_readln(input, &len, EVBUFFER_EOL_LF);
 
-    // Encrypted Ra
-    char * line = evbuffer_readln(input, &len, EVBUFFER_EOL_LF);
-    writeLine(this->plainTextLog, "Encrypted NONCE received");
-    writeHex(this->plainTextLog, (unsigned char *)line, strlen(line));
-    unsigned char nonce[NONCE_SIZE];
-    decrypt((unsigned char *)line, nonce);
-    writeHex(this->plainTextLog, nonce, NONCE_SIZE);
+    writeLine(this->plainTextLog, "Encrypted received MESSAGE:");
+    writeHex(this->plainTextLog, line, strlen(line));
 
-    if(are_nonces_equal(this->nonce, nonce))
+    char decryptedMessage[1024];
+    decrypt(line, decryptedMessage);
+
+    writeLine(this->plainTextLog, "DECRYPTED MESSAGE:");
+    writeHex(this->plainTextLog, decryptedMessage, strlen(decryptedMessage));
+
+    char *sender = strtok(decryptedMessage, "\n");
+    char *returnedNonce = strtok(NULL, "\n");
+    char *serverDiffieHellmanValue = strtok(NULL, "\n");
+
+    char output[1024];
+    sprintf(output, "Sender: %s\n\nDH Val: %s\n", sender, serverDiffieHellmanValue);
+
+    writeLine(this->plainTextLog, output);
+
+    if(strcmp(sender, "Server") == 0)
     {
-        writeLine(this->plainTextLog, "Nonce is correct");
+        writeLine(this->plainTextLog, "Message came from the server");
 
-        
+        if(are_nonces_equal(this->nonce, returnedNonce))
+        {
+            writeLine(this->plainTextLog, "Server returned correct Nonce");
 
-        this->authState = AUTH_STATE_TEST;
+            int dhVal = atoi(serverDiffieHellmanValue);
 
+            // This will be the key used for communication in the future
+            int sessionKey = (int) pow(dhVal, SECRET_A);
+            sprintf(output, "Session key: %d", sessionKey);
+            writeLine(this->plainTextLog, output);
+
+            int clientDiffieHellmanVal = (int) pow(DHG, SECRET_A) % DHP;
+            writeLine(this->plainTextLog, "g^b mod p:");
+
+            char messageToEncrypt[1024];
+
+            sprintf(messageToEncrypt, "Client\n%s\n%d\n", serverNonce, clientDiffieHellmanVal);
+
+            writeLine(this->plainTextLog, "Message to Encrypt:");
+            writeHex(this->plainTextLog, messageToEncrypt, strlen(messageToEncrypt));
+
+            char encryptedMessage[1024];
+            encrypt(messageToEncrypt, encryptedMessage);
+
+            writeLine(this->plainTextLog, "Encrypted Message:");
+            writeHex(this->plainTextLog, encryptedMessage, strlen(encryptedMessage));
+
+            client_send(this, encryptedMessage);
+
+            this->authState = AUTH_STATE_AUTHENTICATED;
+        }
     }
-    else
-    {
-        writeLine(this->plainTextLog, "Incorrect Nonce returned");
-    }
-
-    free(line);
-
-    /*unsigned char test[2048];
-    private_decrypt(Rb, len, this->privateKey, test);
-    printf("DE: %s\n", test);*/
-
-    /*
-    // E(Ra)
-    line = evbuffer_readln(input, &len, EVBUFFER_EOL_LF);
-
-    // E(g^b mod p)
-    line = evbuffer_readln(input, &len, EVBUFFER_EOL_LF);
-
-    // E(KAB)
-    line = evbuffer_readln(input, &len, EVBUFFER_EOL_LF);
-    */
 }
 
 void client_eventcb(struct bufferevent *bev, short events, void *ptr)
